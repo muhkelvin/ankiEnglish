@@ -16,10 +16,10 @@ export default async function AdminLayout({ children }) {
   if (profile?.role !== 'admin') redirect('/')
 
   return (
-    <div className="min-h-dvh flex">
+    <div style={{ display: 'flex', minHeight: '100dvh' }}>
       <AdminSidebar admin={profile} />
-      <main className="flex-1 min-w-0 p-6 overflow-auto">
-        <div className="max-w-4xl mx-auto">
+      <main style={{ flex: 1, minWidth: 0, padding: '32px 40px', overflowY: 'auto' }}>
+        <div style={{ maxWidth: '860px', margin: '0 auto' }} className="page-enter">
           {children}
         </div>
       </main>

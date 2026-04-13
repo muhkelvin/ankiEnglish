@@ -1,12 +1,17 @@
-import Navbar from '@/components/ui/Navbar'
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import AppShell from '@/components/ui/AppShell'
 
-export default function AppLayout({ children }) {
-  return (
-    <div className="min-h-dvh flex flex-col">
-      <Navbar />
-      <main className="flex-1 max-w-lg mx-auto w-full px-4 py-6">
-        {children}
-      </main>
-    </div>
-  )
+export default async function AppLayout({ children }) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('name, role')
+    .eq('id', user.id)
+    .single()
+
+  return <AppShell profile={profile}>{children}</AppShell>
 }
