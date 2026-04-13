@@ -2,7 +2,6 @@
 -- EnglishAnki — Supabase Schema
 -- Run this in Supabase SQL Editor (Project > SQL Editor > New Query)
 -- ============================================================
-
 -- ENUMS
 CREATE TYPE user_role AS ENUM ('admin', 'user');
 CREATE TYPE card_type AS ENUM ('fill_blank', 'multiple_choice', 'error_correction');
@@ -134,56 +133,36 @@ CREATE POLICY "session_cards_own" ON session_cards FOR ALL USING (
   session_id IN (SELECT id FROM sessions WHERE user_id = auth.uid())
 );
 
--- Levels and modules: public read (no RLS needed, but let's be explicit)
--- Admin writes handled via service role key in API
+-- ============================================================
+-- TRIGGER: Auto-sync auth.users → public.users saat register
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.users (id, name, email, role)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'name', 'User'),
+    NEW.email,
+    'user'
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- ============================================================
--- SEED DATA
+-- SYNC: User yang sudah terlanjur register sebelum trigger dipasang
 -- ============================================================
-
--- Seed levels
-INSERT INTO levels (name, label, "order") VALUES
-  ('A1', 'Beginner', 1),
-  ('A2', 'Elementary', 2),
-  ('B1', 'Intermediate', 3),
-  ('B2', 'Upper-Intermediate', 4);
-
--- Seed A1 modules
-INSERT INTO modules (level_id, name, description, total_cards, "order")
-SELECT id, 'To Be', 'is / am / are', 100, 1 FROM levels WHERE name = 'A1';
-
-INSERT INTO modules (level_id, name, description, total_cards, "order")
-SELECT id, 'Simple Present', 'daily habits & facts', 100, 2 FROM levels WHERE name = 'A1';
-
-INSERT INTO modules (level_id, name, description, total_cards, "order")
-SELECT id, 'Pronouns', 'I, you, he, she, it, we, they', 100, 3 FROM levels WHERE name = 'A1';
-
-INSERT INTO modules (level_id, name, description, total_cards, "order")
-SELECT id, 'Articles', 'a / an / the', 100, 4 FROM levels WHERE name = 'A1';
-
--- Seed A2 modules
-INSERT INTO modules (level_id, name, description, total_cards, "order")
-SELECT id, 'Past Simple', 'regular & irregular verbs', 100, 1 FROM levels WHERE name = 'A2';
-
-INSERT INTO modules (level_id, name, description, total_cards, "order")
-SELECT id, 'Modal Verbs', 'can / must / should', 100, 2 FROM levels WHERE name = 'A2';
-
--- Seed B1 modules
-INSERT INTO modules (level_id, name, description, total_cards, "order")
-SELECT id, 'Present Perfect', 'have / has + past participle', 100, 1 FROM levels WHERE name = 'B1';
-
-INSERT INTO modules (level_id, name, description, total_cards, "order")
-SELECT id, 'Passive Voice', 'is made / was built', 100, 2 FROM levels WHERE name = 'B1';
-
--- ============================================================
--- ADMIN ACCOUNT SETUP
--- ============================================================
--- NOTE: Create admin via Supabase Auth dashboard first (Authentication > Users > Add user)
--- Then run this to give them admin role — replace the email below:
---
--- UPDATE users SET role = 'admin' WHERE email = 'kelvin@youremail.com';
---
--- Or insert manually if you know the UUID:
--- INSERT INTO users (id, name, email, role)
--- VALUES ('your-auth-uuid-here', 'Muhammad Kelvin', 'kelvin@example.com', 'admin');
+INSERT INTO public.users (id, name, email, role)
+SELECT
+  id,
+  COALESCE(raw_user_meta_data->>'name', 'User'),
+  email,
+  'user'
+FROM auth.users
+ON CONFLICT (id) DO NOTHING;
 
